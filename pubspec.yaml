@@ -1,7 +1,11 @@
 name: acr122_pcsc
 description: "Dart ACR122 Compatible PC/SC Readers Library"
 repository: https://github.com/devrim-oguz/dart_acr122_pcsc
-version: 1.0.0+0
+version: 1.0.1
+
+platforms:
+  linux:
+  macos:
 
 environment:
   sdk: ^3.7.0
@@ -10,4 +14,4 @@ dependencies:
   event: ^3.1.0
   collection: ^1.19.1
   tuple: ^2.0.2
-  pcsc_wrapper: ^1.1.0
+  pcsc_wrapper: ^1.1.1

@@ -46,3 +46,7 @@ This project is licensed under the BSD 3-Clause License. See the LICENSE file fo
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Disclaimer
+
+This library is provided "as-is" with no guarantee of compatibility or support. Users should thoroughly test in their specific environments.
