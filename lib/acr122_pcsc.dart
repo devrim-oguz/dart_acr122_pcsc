@@ -39,9 +39,19 @@ class CardReaderACR122 {
   }
 
   //Public Methods/////////////////////////////////////////////////////////////////////////////////
-  Future<List<String>> listReaders() async {
-    final SCardContext context = await _pcscLib.establishContext(PcscConstants.CARD_SCOPE_SYSTEM);
-    return await _pcscLib.listReaders(context.hContext);
+  static Future<List<String>> listReaders() async {
+    //Establish a temporary context to list the readers
+    final pcscLib = PCSCWrapper();
+    final SCardContext context = await pcscLib.establishContext(PcscConstants.CARD_SCOPE_SYSTEM);
+
+    //Get the list of readers
+    final readerList = await pcscLib.listReaders(context.hContext);
+
+    //Release the temporary context
+    await pcscLib.releaseContext(context);
+
+    //Return the reader list
+    return readerList;
   }
 
   Future<bool> initReader( String readerName ) async {
