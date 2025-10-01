@@ -70,7 +70,7 @@ void main() async {
   try {
     // List available readers
     stdout.writeln('\n📡 Discovering NFC readers...');
-    final readerList = await reader.listReaders();
+    final readerList = await CardReaderACR122.listReaders();
     
     if (readerList.isEmpty) {
       stdout.writeln('❌ No NFC readers found. Please connect an ACR122 reader.');
