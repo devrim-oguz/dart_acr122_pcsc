@@ -25,3 +25,8 @@
 ## 2.0.0
 
 * Moved library calls to isolate to prevent blocking calls. Dropped incomplete MacOS and Windows support
+
+
+## 2.0.1
+
+* Added optional card read delay to prevent power problems

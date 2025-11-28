@@ -50,7 +50,7 @@ class CardReaderACR122 {
     return readerList;
   }
 
-  Future<bool> initReader( String readerName ) async {
+  Future<bool> initReader( String readerName, { Duration? readDelay = null } ) async {
     //Try to establish a pcsc context
     final SCardContext libraryContext = await _pcscLib.establishContext(PcscConstants.CARD_SCOPE_SYSTEM);
     if( libraryContext.hContext == 0 ) return false;
@@ -58,6 +58,9 @@ class CardReaderACR122 {
     //Copy the reader name and context
     _libraryContext = libraryContext;
     _readerName = readerName;
+
+    //Set the read delay if provided
+    _cardReadDelay = readDelay;
 
     //Start the card detection task but do not wait for it to complete
     _cardDetectionTask(readerName);
@@ -240,6 +243,9 @@ class CardReaderACR122 {
   //Detection Handlers/////////////////////////////////////////////////////////////////////////////
   Future<void> _cardDetectionHandler() async {
     try {
+      //Wait for a short delay to allow the card to stabilize
+      if(_cardReadDelay != null ) await Future.delayed(_cardReadDelay!);
+
       //Try to connect to the card
       if( await _tryConnectingCard() != true ) {
         await _disconnectCard();
@@ -289,4 +295,5 @@ class CardReaderACR122 {
   String? _readerName;
   SCardHandle? _currentCard;
   bool _isDisposed = false;
+  Duration? _cardReadDelay = null;
 }
