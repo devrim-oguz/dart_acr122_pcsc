@@ -1,7 +1,7 @@
 name: acr122_pcsc
 description: "Dart ACR122 Compatible PC/SC Readers Library"
 repository: https://github.com/devrim-oguz/dart_acr122_pcsc
-version: 2.0.0
+version: 2.0.1
 
 platforms:
   linux:
