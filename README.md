@@ -7,9 +7,8 @@ acr122_pcsc is a Dart library that provides a high-level interface for interacti
 ## Platform Support
 
 ⚠️ **Platform Limitations**:
-- Supports Linux, macOS, and Windows
-- Only the Linux implementation is currently tested
-- Windows and macOS implementations are present but experimental / unverified
+- **Only Linux is supported**
+- Windows and macOS implementations are not supported at this time
 
 ## Features
 

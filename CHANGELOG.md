@@ -21,3 +21,7 @@
 ## 1.2.0
 
 * Changed listReaders function to static
+
+## 2.0.0
+
+* Moved library calls to isolate to prevent blocking calls. Dropped incomplete MacOS and Windows support

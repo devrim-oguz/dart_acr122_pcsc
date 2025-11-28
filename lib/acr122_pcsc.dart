@@ -1,7 +1,6 @@
 library acr122_pcsc;
 
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:collection/collection.dart';
 import 'package:tuple/tuple.dart';
@@ -22,11 +21,8 @@ class CardReaderACR122 {
 
   //Class Destructor///////////////////////////////////////////////////////////////////////////////
   void dispose() async {
-    //Stop the isolate
-    if( _cardDetectionIsolate != null ) {
-      _cardDetectionIsolate!.kill(priority: Isolate.immediate);
-      _cardDetectionIsolate = null;
-    }
+    //Stop the detection task
+    _isDisposed = true;
 
     //Close the reader context
     if( _libraryContext != null ) {
@@ -63,14 +59,8 @@ class CardReaderACR122 {
     _libraryContext = libraryContext;
     _readerName = readerName;
 
-    //Create a messaging port to communicate outside the isolate
-    ReceivePort receivePort = ReceivePort();
-
-    //Start the isolate
-    _cardDetectionIsolate = await Isolate.spawn(_cardDetectionTask, {"readerName": readerName, "sendPort": receivePort.sendPort});
-
-    //Listen for messages from the isolate
-    receivePort.listen(_detectionMessageHandler);
+    //Start the card detection task but do not wait for it to complete
+    _cardDetectionTask(readerName);
 
     return true;
   }
@@ -116,25 +106,20 @@ class CardReaderACR122 {
     return (bitField & flagPosition) == flagPosition;
   }
 
-  Future<void> _cardDetectionTask(Map<String, dynamic> args) async {
-    //Copy the arguments
-    final String readerName = args["readerName"];
-    final SendPort sendPort = args["sendPort"];
-
+  Future<void> _cardDetectionTask(String readerName) async {
     //Create a PCSC instance and establish context
-    final PCSCWrapper pcscInstance = PCSCWrapper();
-    final SCardContext libraryContext = await pcscInstance.establishContext(PcscConstants.CARD_SCOPE_SYSTEM);
+    final SCardContext libraryContext = await _detectionPcscLib.establishContext(PcscConstants.CARD_SCOPE_SYSTEM);
 
     //Keep track of the known state
     int knownState = PcscConstants.SCARD_STATE_UNAWARE;
     bool cardPresent = false;
 
     //Card detection loop
-    while(true) {
+    while(!_isDisposed) {
       try {
         //Wait for the reader state to change
-        final readerState = SCardReaderState(readerName, PcscConstants.SCARD_STATE_UNAWARE, PcscConstants.SCARD_STATE_UNAWARE, List.empty());
-        final outputStates = await pcscInstance.getStatusChange(libraryContext.hContext, PcscConstants.SCARD_INFINITE, [readerState]);
+        final readerState = SCardReaderState(readerName, knownState, PcscConstants.SCARD_STATE_UNAWARE, List.empty());
+        final outputStates = await _detectionPcscLib.getStatusChange(libraryContext.hContext, PcscConstants.SCARD_INFINITE, [readerState]);
 
         //Get the current state
         final currentState = outputStates[0].dwEventState;
@@ -152,13 +137,13 @@ class CardReaderACR122 {
         //Check for card detection or removal
         if( _checkFlag(knownState, PcscConstants.SCARD_STATE_PRESENT) ) {
           if( cardPresent == false ) {
-            sendPort.send(_isolateCardDetectedSignal);
+            _cardDetectionHandler();
             cardPresent = true;
           }
         }
         else if( _checkFlag(knownState, PcscConstants.SCARD_STATE_EMPTY) ) {
           if( cardPresent == true ) {
-            sendPort.send(_isolateCardRemovedSignal);
+            _cardRemovedHandler();
             cardPresent = false;
           }
         }
@@ -172,20 +157,9 @@ class CardReaderACR122 {
         await Future.delayed(Duration(milliseconds: 1000));
       }
     }
-  }
 
-  void _detectionMessageHandler(dynamic message) {
-    if(message == null || message.runtimeType != String) {
-      stdout.writeln("Received an invalid message from the card detection isolate");
-      return;
-    }
-
-    if( message == _isolateCardDetectedSignal ) {
-      _cardDetectionHandler();
-    }
-    else if( message == _isolateCardRemovedSignal ) {
-      _cardRemovedHandler();
-    }
+    //Release the detection context
+    await _detectionPcscLib.releaseContext(libraryContext);
   }
 
   //Command Encoding-Decoding//////////////////////////////////////////////////////////////////////
@@ -306,16 +280,13 @@ class CardReaderACR122 {
   }
 
   //Private Variables//////////////////////////////////////////////////////////////////////////////
-  //PCSC Library Instance
+  //PCSC Library Instances
   final PCSCWrapper _pcscLib = PCSCWrapper();
+  final PCSCWrapper _detectionPcscLib = PCSCWrapper();
 
   //Reader State Variables
   SCardContext? _libraryContext;
   String? _readerName;
   SCardHandle? _currentCard;
-
-  //Card Detection Isolate Variables
-  Isolate? _cardDetectionIsolate;
-  static final String _isolateCardDetectedSignal = 'card_detected';
-  static final String _isolateCardRemovedSignal = 'card_removed';
+  bool _isDisposed = false;
 }

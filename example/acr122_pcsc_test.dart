@@ -8,7 +8,7 @@ import 'package:event/event.dart';
 // ============================================================================
 
 /// Target block number for read/write operations
-const int TARGET_BLOCK = 1;
+const int TARGET_BLOCK = 2;
 
 /// Default MIFARE Classic authentication key (factory default: all 0xFF)
 const List<int> AUTHENTICATION_KEY = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
