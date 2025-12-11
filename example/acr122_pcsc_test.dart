@@ -72,8 +72,8 @@ void main() async {
     stdout.writeln('\n📡 Discovering NFC readers...');
     final readerListResult = await CardReaderACR122.listReaders();
     
-    if (!readerListResult.result.isSuccess) {
-      stdout.writeln('❌ Failed to list readers: ${readerListResult.result.message}');
+    if (!readerListResult.isSuccess) {
+      stdout.writeln('❌ Failed to list readers: ${readerListResult.status.message}');
       return;
     }
     
@@ -137,7 +137,7 @@ Future<void> performCardOperations() async {
   stdout.writeln('1. Loading authentication key...');
   final loadKeyResult = await reader.loadKey(AUTHENTICATION_KEY);
   if (!loadKeyResult.isSuccess) {
-    stdout.writeln('   ❌ Failed to load authentication key: ${loadKeyResult.errorMessage}');
+    stdout.writeln('   ❌ Failed to load authentication key: ${loadKeyResult.status.message}');
     return;
   }
   stdout.writeln('   ✅ Authentication key loaded successfully');
@@ -146,7 +146,7 @@ Future<void> performCardOperations() async {
   stdout.writeln('2. Authenticating with block $TARGET_BLOCK...');
   final authResult = await reader.generalAuthenticate(TARGET_BLOCK);
   if (!authResult.isSuccess) {
-    stdout.writeln('   ❌ Failed to authenticate with block $TARGET_BLOCK: ${authResult.errorMessage}');
+    stdout.writeln('   ❌ Failed to authenticate with block $TARGET_BLOCK: ${authResult.status.message}');
     return;
   }
   stdout.writeln('   ✅ Authentication successful');
@@ -155,7 +155,7 @@ Future<void> performCardOperations() async {
   stdout.writeln('3. Reading current data from block $TARGET_BLOCK...');
   final readResult = await reader.readBinary(TARGET_BLOCK);
   if (!readResult.isSuccess) {
-    stdout.writeln('   ❌ Failed to read block $TARGET_BLOCK: ${readResult.errorMessage}');
+    stdout.writeln('   ❌ Failed to read block $TARGET_BLOCK: ${readResult.status.message}');
     return;
   }
   
@@ -168,7 +168,7 @@ Future<void> performCardOperations() async {
   
   final writeResult = await reader.updateBinary(TARGET_BLOCK, SAMPLE_DATA);
   if (!writeResult.isSuccess) {
-    stdout.writeln('   ❌ Failed to write to block $TARGET_BLOCK: ${writeResult.errorMessage}');
+    stdout.writeln('   ❌ Failed to write to block $TARGET_BLOCK: ${writeResult.status.message}');
     return;
   }
   stdout.writeln('   ✅ Data written successfully');
@@ -177,7 +177,7 @@ Future<void> performCardOperations() async {
   stdout.writeln('5. Verifying written data...');
   final verifyResult = await reader.readBinary(TARGET_BLOCK);
   if (!verifyResult.isSuccess) {
-    stdout.writeln('   ❌ Failed to verify written data: ${verifyResult.errorMessage}');
+    stdout.writeln('   ❌ Failed to verify written data: ${verifyResult.status.message}');
     return;
   }
   
@@ -199,7 +199,7 @@ Future<void> performCardOperations() async {
   if (restoreResult.isSuccess) {
     stdout.writeln('   ✅ Original data restored');
   } else {
-    stdout.writeln('   ⚠️  Failed to restore original data: ${restoreResult.errorMessage}');
+    stdout.writeln('   ⚠️  Failed to restore original data: ${restoreResult.status.message}');
   }
   
   stdout.writeln('\n--- Card Operations Complete ---');

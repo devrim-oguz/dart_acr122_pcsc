@@ -6,11 +6,12 @@ import 'package:collection/collection.dart';
 import 'package:event/event.dart';
 import 'package:pcsc_wrapper/pcsc_wrapper.dart';
 
-import 'src/reader_constants.dart';
-import 'src/acr122_types.dart';
+import 'common/reader_constants.dart';
+import 'common/reader_types.dart';
 
-export 'src/acr122_types.dart';
+export 'common/reader_types.dart';
 
+//Event Arguments////////////////////////////////////////////////////////////////////////////////
 class CardDetailsACR122 extends EventArgs {
   final List<int> cardNUID;
   CardDetailsACR122(this.cardNUID);
@@ -37,13 +38,14 @@ class CardReaderACR122 {
   }
 
   //Public Methods/////////////////////////////////////////////////////////////////////////////////
-  static Future<ListReadersResult> listReaders() async {
+  /// Lists all available card readers in the system
+  static Future<ReaderListResult> listReaders() async {
     //Establish a temporary context to list the readers
     final pcscLib = PCSCWrapper();
     final establishResult = await pcscLib.establishContext(PcscConstants.CARD_SCOPE_SYSTEM);
     
     if( !establishResult.result.isSuccess ) {
-      return ListReadersResult(establishResult.result, []);
+      return ReaderListResult(PcscResult.fromSCard(establishResult.result), []);
     }
 
     //Get the list of readers
@@ -53,13 +55,14 @@ class CardReaderACR122 {
     await pcscLib.releaseContext(establishResult.context);
 
     //Return the reader list result
-    return listResult;
+    return ReaderListResult.fromInternal(listResult);
   }
 
-  Future<SCardResult> initReader( String readerName, { Duration? readDelay = null } ) async {
+  /// Initializes the card reader with the specified name and optional read delay
+  Future<PcscResult> initReader( String readerName, { Duration? readDelay = null } ) async {
     //Try to establish a pcsc context
     final establishResult = await _pcscLib.establishContext(PcscConstants.CARD_SCOPE_SYSTEM);
-    if( !establishResult.result.isSuccess ) return establishResult.result;
+    if( !establishResult.result.isSuccess ) return PcscResult.fromSCard(establishResult.result);
 
     //Copy the reader name and context
     _libraryContext = establishResult.context;
@@ -71,21 +74,25 @@ class CardReaderACR122 {
     //Start the card detection task but do not wait for it to complete
     _cardDetectionTask(readerName);
 
-    return establishResult.result;
+    return PcscResult.fromSCard(establishResult.result);
   }
 
-  Future<CommandResult> loadKey(List<int> inputKey) async {
+  /// Loads a 6-byte authentication key into the reader's volatile memory
+  Future<BinaryCommandResult> loadKey(List<int> inputKey) async {
     if( _currentCard == null ) {
-      return CommandResult.failure(SCardResult(PcscConstants.SCARD_E_NO_SMARTCARD));
+      return BinaryCommandResult.failure(SCardResult(PcscConstants.SCARD_E_NO_SMARTCARD));
     }
+
     final List<int> command = _encodeCommand(ReaderConstants.loadKeyCommand, 0, 0, inputKey, 0);
     return await _transmitCommand(_currentCard!, command);
   }
 
-  Future<CommandResult> generalAuthenticate(int blockNumber) async {
+  /// Authenticates access to a specific block using the previously loaded key
+  Future<BinaryCommandResult> generalAuthenticate(int blockNumber) async {
     if( _currentCard == null ) {
-      return CommandResult.failure(SCardResult(PcscConstants.SCARD_E_NO_SMARTCARD));
+      return BinaryCommandResult.failure(SCardResult(PcscConstants.SCARD_E_NO_SMARTCARD));
     }
+
     final List<int> command = _encodeCommand(ReaderConstants.generalAuthCommand, 0, 0, [0x01, 0x00, blockNumber, 0x60, 0x00], 0);
     return await _transmitCommand(_currentCard!, command);
 
@@ -99,28 +106,34 @@ class CardReaderACR122 {
     */
   }
 
+  /// Reads 16 bytes of data from the specified block number
   Future<ReadBinaryResult> readBinary(int blockNumber) async {
     if( _currentCard == null ) {
       return ReadBinaryResult.failure(SCardResult(PcscConstants.SCARD_E_NO_SMARTCARD));
     }
+
     final List<int> command = _encodeCommand(ReaderConstants.readBinaryCommand, 0, blockNumber, [], 16);
-    final result = await _transmitCommand(_currentCard!, command);
-    return ReadBinaryResult(result.result, result.commandSuccess, result.data);
+    final commandResult = await _transmitCommand(_currentCard!, command);
+    return ReadBinaryResult.fromStatus(commandResult.status, commandResult.cardCommandSuccess, commandResult.data);
   }
 
-  Future<CommandResult> updateBinary(int blockNumber, List<int> data) async {
+  /// Writes data to the specified block number (data must be 16 bytes)
+  Future<BinaryCommandResult> updateBinary(int blockNumber, List<int> data) async {
     if( _currentCard == null ) {
-      return CommandResult.failure(SCardResult(PcscConstants.SCARD_E_NO_SMARTCARD));
+      return BinaryCommandResult.failure(SCardResult(PcscConstants.SCARD_E_NO_SMARTCARD));
     }
+
     final List<int> command = _encodeCommand(ReaderConstants.updateBinaryCommand, 0, blockNumber, data, 0);
     return await _transmitCommand(_currentCard!, command);
   }
 
   //Card Detection/////////////////////////////////////////////////////////////////////////////////
+  /// Checks if a specific flag is set in the bit field
   static bool _checkFlag(int bitField, int flagPosition) {
     return (bitField & flagPosition) == flagPosition;
   }
 
+  /// Background task that continuously monitors for card insertion and removal
   Future<void> _cardDetectionTask(String readerName) async {
     //Create a PCSC instance and establish context
     final establishResult = await _detectionPcscLib.establishContext(PcscConstants.CARD_SCOPE_SYSTEM);
@@ -190,6 +203,7 @@ class CardReaderACR122 {
   }
 
   //Command Encoding-Decoding//////////////////////////////////////////////////////////////////////
+  /// Encodes an APDU command with parameters, data, and expected response length
   static List<int> _encodeCommand(List<int> commandBytes, int paramOne, int paramTwo, List<int> data, int expectedLength) {
     List<int> result = [...commandBytes, paramOne, paramTwo];
 
@@ -205,10 +219,11 @@ class CardReaderACR122 {
     return result;
   }
 
-  static CommandResult _decodeResponse(SCardResult scardResult, List<int> response) {
+  /// Decodes the card response and separates status bytes from data
+  static BinaryCommandResult _decodeResponse(SCardResult scardResult, List<int> response) {
     //Check if the response is valid
     if (response.length < 2) {
-      return CommandResult(scardResult, false, []);
+      return BinaryCommandResult.fromSCard(scardResult, false, []);
     }
     
     //Copy the command result and data
@@ -219,39 +234,42 @@ class CardReaderACR122 {
     final bool success = ListEquality<int>().equals(commandResult, ReaderConstants.successResponse);
 
     //Return the result
-    return CommandResult(scardResult, success, commandData);
+    return BinaryCommandResult.fromSCard(scardResult, success, commandData);
   }
 
-  Future<CommandResult> _transmitCommand(SCardHandle selectedCard, List<int> command) async {
+  /// Transmits a command to the card and returns the decoded response
+  Future<BinaryCommandResult> _transmitCommand(SCardHandle selectedCard, List<int> command) async {
     final hCard = selectedCard.hCard;
     final activeProtocol = selectedCard.dwActiveProtocol;
 
     final transmitResult = await _pcscLib.transmit(hCard, activeProtocol, command);
     if( !transmitResult.result.isSuccess ) {
-      return CommandResult.failure(transmitResult.result);
+      return BinaryCommandResult.failure(transmitResult.result);
     }
 
     return _decodeResponse(transmitResult.result, transmitResult.response);
   }
 
   //Utility Methods////////////////////////////////////////////////////////////////////////////////
-  Future<ReadNUIDResult> _readCardNUID(SCardHandle selectedCard) async {
+  /// Reads the 4-byte NUID (Non-Unique ID) from the card
+  Future<ReadNuidResult> _readCardNUID(SCardHandle selectedCard) async {
     //Create the read NUID command and transmit it
     final List<int> command = _encodeCommand(ReaderConstants.readIdentifierCommand, 0, 0, [], 4);
-    final response = await _transmitCommand(selectedCard, command);
+    final commandResult = await _transmitCommand(selectedCard, command);
 
     //Check if the response is valid
-    if( !response.isSuccess || response.data.length < 4 ) {
-      return ReadNUIDResult(response.result, false, []);
+    if( !commandResult.isSuccess || commandResult.data.length < 4 ) {
+      return ReadNuidResult.failure(commandResult.status);
     }
 
     //Copy the card NUID
-    final List<int> cardNUID = response.data.sublist(response.data.length - 4);
+    final List<int> cardNUID = commandResult.data.sublist(commandResult.data.length - 4);
 
     //Return the card NUID
-    return ReadNUIDResult(response.result, true, cardNUID);
+    return ReadNuidResult.fromStatus(commandResult.status, cardNUID);
   }
 
+  /// Attempts to establish a connection with the card in the reader
   Future<bool> _tryConnectingCard() async {
     if( _libraryContext == null || _readerName == null ) {
       stdout.writeln('Reader not initialized');
@@ -268,6 +286,7 @@ class CardReaderACR122 {
     return true;
   }
 
+  /// Disconnects from the currently connected card
   Future<void> _disconnectCard() async {
     if( _currentCard == null ) return;
     final disconnectResult = await _pcscLib.disconnect(_currentCard!.hCard, PcscConstants.SCARD_LEAVE_CARD);
@@ -278,6 +297,7 @@ class CardReaderACR122 {
   }
 
   //Detection Handlers/////////////////////////////////////////////////////////////////////////////
+  /// Handles card detection by connecting to the card and reading its NUID
   Future<void> _cardDetectionHandler() async {
     try {
       //Wait for a short delay to allow the card to stabilize
@@ -308,6 +328,7 @@ class CardReaderACR122 {
     }
   }
 
+  /// Handles card removal by disconnecting and broadcasting the removal event
   Future<void> _cardRemovedHandler() async {
     try {
       await _disconnectCard();
@@ -332,220 +353,3 @@ class CardReaderACR122 {
   bool _isDisposed = false;
   Duration? _cardReadDelay = null;
 }
-
-
-/*
-New Return Types:
-
-import 'dart:ffi';
-
-import 'package:ffi/ffi.dart';
-import 'package:pcsc_wrapper/common/pcsc_constants.dart';
-
-//Function Return Types
-class SCardResult {
-  final int code;
-  String get message => PcscConstants.returnCodeToString(code);
-  bool get isSuccess => code == PcscConstants.SCARD_S_SUCCESS;
-
-  SCardResult(this.code);
-}
-
-class EstablishContextResult {
-  final SCardResult result;
-  final SCardContext context;
-
-  EstablishContextResult(this.result, this.context);
-}
-
-class ConnectResult {
-  final SCardResult result;
-  final SCardHandle handle;
-
-  ConnectResult(this.result, this.handle);
-}
-
-class ReconnectResult {
-  final SCardResult result;
-  final SCardHandle handle;
-
-  ReconnectResult(this.result, this.handle);
-}
-
-class StatusResult {
-  final SCardResult result;
-  final SCardStatus status;
-
-  StatusResult(this.result, this.status);
-}
-
-class GetStatusChangeResult {
-  final SCardResult result;
-  final List<SCardReaderState> readerStates;
-
-  GetStatusChangeResult(this.result, this.readerStates);
-}
-
-class ControlResult {
-  final SCardResult result;
-  final List<int> response;
-
-  ControlResult(this.result, this.response);
-}
-
-class TransmitResult {
-  final SCardResult result;
-  final List<int> response;
-
-  TransmitResult(this.result, this.response);
-}
-
-class ListReaderGroupsResult {
-  final SCardResult result;
-  final List<String> groups;
-
-  ListReaderGroupsResult(this.result, this.groups);
-}
-
-class ListReadersResult {
-  final SCardResult result;
-  final List<String> readers;
-
-  ListReadersResult(this.result, this.readers);
-}
-
-class GetAttribResult {
-  final SCardResult result;
-  final List<int> attrib;
-
-  GetAttribResult(this.result, this.attrib);
-}
-
-//Library Specific Types
-class SCardContext {
-  final int hContext;
-  SCardContext(this.hContext);
-}
-
-class SCardHandle {
-  final int hCard;
-  final int dwActiveProtocol;
-
-  SCardHandle(this.hCard, this.dwActiveProtocol);
-}
-
-class SCardStatus {
-  final String szReaderName;
-  final int dwState;
-  final int dwProtocol;
-  final List<int> bAtr;
-
-  SCardStatus(this.szReaderName, this.dwState, this.dwProtocol, this.bAtr);
-}
-
-class SCardReaderState {
-  final String szReader;
-  final int dwCurrentState;
-  final int dwEventState;
-  final List<int> rgbAtr;
-
-  SCardReaderState(this.szReader, this.dwCurrentState, this.dwEventState, this.rgbAtr);
-}
-
-class SCardReaderResponse {
-  final List<Uint8> bytes;
-
-  SCardReaderResponse(this.bytes);
-}
-
-
-*/
-
-
-/*
-Function definitions:
-
-library pcsc_wrapper;
-
-import 'dart:io';
-
-import 'package:pcsc_wrapper/common/pcsc_bindings_base.dart';
-import 'package:pcsc_wrapper/bindings/linux_bindings.dart';
-import 'package:pcsc_wrapper/common/pcsc_types.dart';
-
-export 'common/pcsc_types.dart';
-export 'common/pcsc_constants.dart';
-
-class PCSCWrapper {
-  late PcscBindings _bindings;
-
-  PCSCWrapper() {
-    if (Platform.isLinux) {
-      _bindings = LinuxBindings();
-    }
-    /*else if (Platform.isMacOS) {
-      _bindings = MacOSBindings();
-    }
-    else if (Platform.isWindows) {
-      _bindings = WindowsBindings();
-    }*/
-    else {
-      throw Exception("Unsupported operating system");
-    }
-  }
-
-  void dispose() => _bindings.dispose();
-
-  Future<EstablishContextResult> establishContext(int scope) =>
-      _bindings.establishContext(scope);
-
-  Future<SCardResult> releaseContext(SCardContext context) =>
-      _bindings.releaseContext(context.hContext);
-
-  Future<SCardResult> isValidContext(int hContext) =>
-      _bindings.isValidContext(hContext);
-
-  Future<ListReadersResult> listReaders(int hContext) =>
-      _bindings.listReaders(hContext);
-
-  Future<ConnectResult> connect(int hContext, String szReader, int dwShareMode, int dwPreferredProtocols) =>
-      _bindings.connect(hContext, szReader, dwShareMode, dwPreferredProtocols);
-
-  Future<ReconnectResult> reconnect(int hCard, int dwShareMode, int dwPreferredProtocols, int dwInitialization) =>
-      _bindings.reconnect(hCard, dwShareMode, dwPreferredProtocols, dwInitialization);
-
-  Future<SCardResult> disconnect(int hCard, int dwDisposition) =>
-      _bindings.disconnect(hCard, dwDisposition);
-
-  Future<SCardResult> beginTransaction(int hCard) =>
-      _bindings.beginTransaction(hCard);
-
-  Future<SCardResult> endTransaction(int hCard, int dwDisposition) =>
-      _bindings.endTransaction(hCard, dwDisposition);
-
-  Future<StatusResult> status(int hCard) =>
-      _bindings.status(hCard);
-
-  Future<GetStatusChangeResult> getStatusChange(int hContext, int dwTimeout, List<SCardReaderState> rgReaderStates) =>
-      _bindings.getStatusChange(hContext, dwTimeout, rgReaderStates);
-
-  Future<ControlResult> control(int hCard, int dwControlCode, List<int> pbSendBuffer) =>
-      _bindings.control(hCard, dwControlCode, pbSendBuffer);
-
-  Future<TransmitResult> transmit(int hCard, int pioSendPci, List<int> pbSendBuffer) =>
-      _bindings.transmit(hCard, pioSendPci, pbSendBuffer);
-
-  Future<ListReaderGroupsResult> listReaderGroups(int hContext) =>
-      _bindings.listReaderGroups(hContext);
-
-  Future<SCardResult> cancel(int hContext) =>
-      _bindings.cancel(hContext);
-
-  Future<GetAttribResult> getAttrib(int hCard, int dwAttrId) =>
-      _bindings.getAttrib(hCard, dwAttrId);
-
-  Future<SCardResult> setAttrib(int hCard, int dwAttrId, List<int> pbAttr) =>
-      _bindings.setAttrib(hCard, dwAttrId, pbAttr);
-}
-
-*/
