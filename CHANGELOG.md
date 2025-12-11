@@ -30,3 +30,7 @@
 ## 2.0.1
 
 * Added optional card read delay to prevent power problems
+
+## 3.0.0
+
+* Changed the behavior of the library classes from throwing errors to returning the PCSC result instead. Added preliminary MacOS support.

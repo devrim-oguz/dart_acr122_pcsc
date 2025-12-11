@@ -6,9 +6,13 @@ acr122_pcsc is a Dart library that provides a high-level interface for interacti
 
 ## Platform Support
 
-⚠️ **Platform Limitations**:
-- **Only Linux is supported**
-- Windows and macOS implementations are not supported at this time
+| Platform | Status | Notes |
+|----------|--------|-------|
+| **Linux** | ✅ Available | Implementation provided. |
+| **macOS** | ⚠️ Experimental | Implementation provided but untested. |
+| **Windows** | ❌ Not Supported | No implementation available at this time. |
+
+⚠️ **Important**: We do not guarantee stability or full support for any specific platform. Please test the library thoroughly in your environment.
 
 ## Features
 
@@ -25,9 +29,10 @@ This library depends on the pcsc_wrapper for its underlying PC/SC bindings, prov
 ## Prerequisites
 
 - Dart SDK
-- PC/SC middleware installed on your system
-- libpcsclite-dev (on Linux)
-- ACR122 NFC/RFID reader
+- PC/SC middleware installed on your system:
+  - **Linux**: `libpcsclite1` and `libpcsclite-dev`
+  - **macOS**: PCSC framework (usually built-in)
+- ACR122 or compatible NFC/RFID reader
 
 ## Installation
 
