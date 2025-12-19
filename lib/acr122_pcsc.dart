@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'package:collection/collection.dart';
 import 'package:event/event.dart';
-import 'package:pcsc_wrapper/pcsc_wrapper.dart';
+import 'package:pcsc_wrapper/pcsc_wrapper.dart' hide PcscResult;
 
 import 'common/reader_constants.dart';
 import 'common/reader_types.dart';
@@ -39,23 +39,23 @@ class CardReaderACR122 {
 
   //Public Methods/////////////////////////////////////////////////////////////////////////////////
   /// Lists all available card readers in the system
-  static Future<ReaderListResult> listReaders() async {
+  static Future<ListReadersResult> listReaders() async {
     //Establish a temporary context to list the readers
     final pcscLib = PCSCWrapper();
     final establishResult = await pcscLib.establishContext(PcscConstants.CARD_SCOPE_SYSTEM);
     
     if( !establishResult.result.isSuccess ) {
-      return ReaderListResult(PcscResult.fromSCard(establishResult.result), []);
+      return ListReadersResult(PcscResult.fromSCard(establishResult.result), []);
     }
 
     //Get the list of readers
-    final listResult = await pcscLib.listReaders(establishResult.context.hContext);
+    final listResult = await pcscLib.listReaders(establishResult.value.hContext);
 
     //Release the temporary context
-    await pcscLib.releaseContext(establishResult.context);
+    await pcscLib.releaseContext(establishResult.value);
 
     //Return the reader list result
-    return ReaderListResult.fromInternal(listResult);
+    return ListReadersResult(PcscResult.fromSCard(listResult.result), listResult.value);
   }
 
   /// Initializes the card reader with the specified name and optional read delay
@@ -65,7 +65,7 @@ class CardReaderACR122 {
     if( !establishResult.result.isSuccess ) return PcscResult.fromSCard(establishResult.result);
 
     //Copy the reader name and context
-    _libraryContext = establishResult.context;
+    _libraryContext = establishResult.value;
     _readerName = readerName;
 
     //Set the read delay if provided
@@ -141,7 +141,7 @@ class CardReaderACR122 {
       stdout.writeln("Failed to establish detection context: ${establishResult.result.message}");
       return;
     }
-    final libraryContext = establishResult.context;
+    final libraryContext = establishResult.value;
 
     //Keep track of the known state
     int knownState = PcscConstants.SCARD_STATE_UNAWARE;
@@ -167,7 +167,7 @@ class CardReaderACR122 {
         }
 
         //Get the current state
-        final currentState = statusChangeResult.readerStates[0].dwEventState;
+        final currentState = statusChangeResult.value[0].dwEventState;
         
         //Check if the state has changed
         if( currentState == knownState ) {
@@ -247,7 +247,7 @@ class CardReaderACR122 {
       return BinaryCommandResult.failure(transmitResult.result);
     }
 
-    return _decodeResponse(transmitResult.result, transmitResult.response);
+    return _decodeResponse(transmitResult.result, transmitResult.value);
   }
 
   //Utility Methods////////////////////////////////////////////////////////////////////////////////
@@ -282,7 +282,7 @@ class CardReaderACR122 {
       return false;
     }
 
-    _currentCard = connectResult.handle;
+    _currentCard = connectResult.value;
     return true;
   }
 

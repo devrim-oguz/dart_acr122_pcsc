@@ -22,15 +22,11 @@ class PcscResult {
   }
 }
 
-class ReaderListResult {
+class ListReadersResult {
   final PcscResult status;
   final List<String> readers;
   
-  ReaderListResult(this.status, this.readers);
-  
-  ReaderListResult.fromInternal(ListReadersResult internal) 
-      : status = PcscResult.fromSCard(internal.result),
-        readers = internal.readers;
+  ListReadersResult(this.status, this.readers);
   
   bool get isSuccess => status.isSuccess;
 }

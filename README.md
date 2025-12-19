@@ -34,6 +34,14 @@ This library depends on the pcsc_wrapper for its underlying PC/SC bindings, prov
   - **macOS**: PCSC framework (usually built-in)
 - ACR122 or compatible NFC/RFID reader
 
+## Tested Readers
+
+The following readers have been tested with this library under Linux:
+
+- ACR122U
+- ACR1252
+- ACR1552U
+
 ## Installation
 
 Add the following to your `pubspec.yaml`:

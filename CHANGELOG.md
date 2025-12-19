@@ -34,3 +34,8 @@
 ## 3.0.0
 
 * Changed the behavior of the library classes from throwing errors to returning the PCSC result instead. Added preliminary MacOS support.
+
+
+## 4.0.0
+
+* Upgraded the base library and dart sdk versions, changed return types
